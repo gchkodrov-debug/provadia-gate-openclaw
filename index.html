@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>THE GATE OF PROVADIA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Inter:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; background: #141210; color: #F4EFE6; font-family: 'Inter', sans-serif; overflow: hidden; }
+        canvas { display: block; }
+        #ui { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; opacity: 0; transition: opacity 2s ease-in; }
+        #ui.visible { opacity: 1; }
+        .overlay { position: absolute; pointer-events: auto; }
+        #title-group { top: 10%; left: 50%; transform: translate(-50%, 0); text-align: center; }
+        #title { font-family: 'Cinzel', serif; color: #FFEFC1; font-size: 3rem; letter-spacing: 0.3rem; margin: 0; text-shadow: 0 0 20px rgba(201,162,39,0.4); }
+        #subtitle { font-family: 'Cinzel', serif; color: #C9A227; font-size: 0.9rem; letter-spacing: 0.1rem; margin-top: 0.5rem; }
+        #wall-info { bottom: 12%; left: 5%; text-align: left; }
+        #wall-info div { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.1rem; color: #C9A227; }
+        #wall-info .count { color: #F4EFE6; font-weight: 400; }
+        #flip-btn { bottom: 5%; left: 50%; transform: translate(-50%, 0); padding: 0.8rem 2rem; background: transparent; border: 1px solid #C9A227; color: #FFEFC1; font-family: 'Cinzel', serif; cursor: pointer; transition: all 0.3s; }
+        #flip-btn:hover { background: rgba(201,162,39,0.2); box-shadow: 0 0 15px rgba(201,162,39,0.3); }
+        #hint { bottom: 5%; right: 5%; font-size: 0.7rem; color: #6B4A12; text-transform: uppercase; letter-spacing: 0.1rem; }
+        #fade-in { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 20; pointer-events: none; animation: fadeOut 2.6s forwards; }
+        #vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle, transparent 40%, rgba(0,0,0,0.7) 100%); pointer-events: none; z-index: 5; }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    </style>
+</head>
+<body>
+    <div id="fade-in"></div>
+    <div id="vignette"></div>
+    <div id="ui">
+        <div id="title-group" class="overlay">
+            <h1 id="title">PROVADIA</h1>
+            <div id="subtitle">THE GATE · EUROPE'S FIRST TOWN OF RECORD</div>
+        </div>
+        <div id="wall-info" class="overlay">
+            <div>THE GOLDEN WALL</div>
+            <div><span class="count">0 / 47 bricks laid</span> · one is waiting</div>
+        </div>
+        <button id="flip-btn" class="overlay">FLIP THE COIN</button>
+        <div id="hint" class="overlay">TAP THE COIN</div>
+    </div>
+    <script type="module">
+        import * as THREE from './three.module.min.js';
+
+        const PALETTE = { field: '#141210', gold: '#C9A227', goldLight: '#FFEFC1', goldDark: '#6B4A12', goldDeep: '#3D2A08', salt: '#F4EFE6' };
+        
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(PALETTE.field);
+        scene.fog = new THREE.FogExp2(PALETTE.field, 0.028);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        document.body.appendChild(renderer.domElement);
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+        scene.add(hemiLight);
+
+        const keyLight = new THREE.DirectionalLight(0xfffaf0, 1.2);
+        keyLight.position.set(-10, 15, 10);
+        keyLight.castShadow = true;
+        keyLight.shadow.mapSize.width = 2048;
+        keyLight.shadow.mapSize.height = 2048;
+        scene.add(keyLight);
+
+        const emberLight = new THREE.PointLight(PALETTE.gold, 0.8, 10);
+        emberLight.position.set(0, 2.35, 2);
+        scene.add(emberLight);
+
+        const groundGeo = new THREE.CircleGeometry(50, 64);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.8 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.62;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // THE GATE
+        const gateGroup = new THREE.Group();
+        const stoneMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 });
+        const goldTrimMat = new THREE.MeshStandardMaterial({ color: PALETTE.gold, metalness: 0.8, roughness: 0.2 });
+
+        const pillarGeo = new THREE.BoxGeometry(1.5, 8.6, 1.5);
+        const pillarL = new THREE.Mesh(pillarGeo, stoneMat);
+        pillarL.position.set(-4.1, 3.7, 7);
+        pillarL.castShadow = true;
+        scene.add(pillarL);
+
+        const pillarR = new THREE.Mesh(pillarGeo, stoneMat);
+        pillarR.position.set(4.1, 3.7, 7);
+        pillarR.castShadow = true;
+        scene.add(pillarR);
+
+        const lintelGeo = new THREE.BoxGeometry(9.7, 1.2, 1.5);
+        const lintel = new THREE.Mesh(lintelGeo, stoneMat);
+        lintel.position.set(0, 8, 7);
+        lintel.castShadow = true;
+        scene.add(lintel);
+
+        const trimGeo = new THREE.BoxGeometry(0.1, 8.6, 0.1);
+        const trimL = new THREE.Mesh(trimGeo, goldTrimMat);
+        trimL.position.set(-3.3, 3.7, 7.76);
+        scene.add(trimL);
+        const trimR = new THREE.Mesh(trimGeo, goldTrimMat);
+        trimR.position.set(3.3, 3.7, 7.76);
+        scene.add(trimR);
+        const trimL2 = new THREE.Mesh(trimGeo, goldTrimMat);
+        trimL2.position.set(-4.8, 3.7, 7.76);
+        scene.add(trimL2);
+        const trimR2 = new THREE.Mesh(trimGeo, goldTrimMat);
+        trimR2.position.set(4.8, 3.7, 7.76);
+        scene.add(trimR2);
+
+        const lintelTrimGeo = new THREE.BoxGeometry(9.7, 0.1, 0.1);
+        const lintelTrim = new THREE.Mesh(lintelTrimGeo, goldTrimMat);
+        lintelTrim.position.set(0, 8.6, 7.76);
+        scene.add(lintelTrim);
+
+        // THE COIN
+        const coinGroup = new THREE.Group();
+        coinGroup.position.set(0, 2.35, 0);
+        scene.add(coinGroup);
+
+        const coinGeo = new THREE.CylinderGeometry(2, 2, 0.36, 64);
+        const coinMat = new THREE.MeshStandardMaterial({ color: PALETTE.gold, metalness: 0.9, roughness: 0.1 });
+        const coinBase = new THREE.Mesh(coinGeo, coinMat);
+        coinBase.rotation.x = Math.PI / 2;
+        coinBase.castShadow = true;
+        coinGroup.add(coinBase);
+
+        const frontGroup = new THREE.Group();
+        frontGroup.position.z = 0.181;
+        coinGroup.add(frontGroup);
+
+        const brickGeo = new THREE.BoxGeometry(0.2, 0.1, 0.1);
+        const brickMat = new THREE.MeshStandardMaterial({ color: PALETTE.goldLight, metalness: 0.8 });
+        for(let i=0; i<5; i++) {
+            for(let j=0; j<8; j++) {
+                const b = new THREE.Mesh(brickGeo, brickMat);
+                b.position.set(-0.7 + j*0.2, -0.4 + i*0.15, 0);
+                frontGroup.add(b);
+            }
+        }
+
+        for(let i=0; i<7; i++) {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.3, 0.1), brickMat);
+            const angle = (Math.PI / 6) + (i * Math.PI / 6);
+            m.position.set(Math.cos(angle)*1.8, Math.sin(angle)*1.8, 0);
+            m.rotation.z = angle + Math.PI/2;
+            frontGroup.add(m);
+        }
+
+        const rimGeo = new THREE.SphereGeometry(0.05, 8, 8);
+        for(let i=0; i<47; i++) {
+            const s = new THREE.Mesh(rimGeo, brickMat);
+            const angle = (i / 47) * Math.PI * 2;
+            s.position.set(Math.cos(angle)*1.76, Math.sin(angle)*1.76, 0);
+            frontGroup.add(s);
+        }
+
+        const backGroup = new THREE.Group();
+        backGroup.position.z = -0.181;
+        backGroup.rotation.y = Math.PI;
+        coinGroup.add(backGroup);
+
+        const sunDisc = new THREE.Mesh(new THREE.CircleGeometry(1.2, 32), new THREE.MeshStandardMaterial({ color: PALETTE.gold, emissive: PALETTE.goldDeep, emissiveIntensity: 0.5 }));
+        backGroup.add(sunDisc);
+
+        for(let i=1; i<=3; i++) {
+            const torus = new THREE.Mesh(new THREE.TorusGeometry(i*0.4, 0.03, 16, 64), brickMat);
+            torus.position.z = -0.01;
+            backGroup.add(torus);
+        }
+
+        for(let i=0; i<47; i++) {
+            const bead = new THREE.Mesh(rimGeo, brickMat);
+            const angle = (i / 47) * Math.PI * 2;
+            bead.position.set(Math.cos(angle)*1.76, Math.sin(angle)*1.76, 0);
+            backGroup.add(bead);
+        }
+
+        // THE GOLDEN WALL
+        const wallGroup = new THREE.Group();
+        wallGroup.position.z = -8.5;
+        scene.add(wallGroup);
+
+        const wallCanvas = document.createElement('canvas');
+        wallCanvas.width = 2048; wallCanvas.height = 768;
+        const ctx = wallCanvas.getContext('2d');
+        ctx.fillStyle = PALETTE.field;
+        ctx.fillRect(0, 0, 2048, 768);
+        ctx.strokeStyle = PALETTE.goldDark;
+        ctx.lineWidth = 2;
+        const slotW = 120, slotH = 60, pad = 20;
+        for(let r=0; r<4; r++) {
+            const cols = r < 3 ? 12 : 11;
+            const rowOffset = r * (slotH + pad);
+            for(let c=0; c<cols; c++) {
+                const x = 200 + c * (slotW + pad);
+                const y = 100 + rowOffset;
+                ctx.strokeRect(x, y, slotW, slotH);
+            }
+        }
+        const wallTex = new THREE.CanvasTexture(wallCanvas);
+        const wallPlane = new THREE.Mesh(new THREE.PlaneGeometry(27, 10.1), new THREE.MeshStandardMaterial({ map: wallTex, transparent: true }));
+        wallGroup.add(wallPlane);
+
+        const waitingBrick = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.6), new THREE.MeshStandardMaterial({ color: PALETTE.gold, transparent: true, opacity: 0.5 }));
+        waitingBrick.position.set(-12.6, 4.5, 0.01);
+        const edges = new THREE.EdgesGeometry(waitingBrick.geometry);
+        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: PALETTE.goldLight }));
+        waitingBrick.add(line);
+        wallGroup.add(waitingBrick);
+
+        // SALT DUST
+        const dustCanvas = document.createElement('canvas');
+        dustCanvas.width = 32; dustCanvas.height = 32;
+        const dctx = dustCanvas.getContext('2d');
+        const grad = dctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+        grad.addColorStop(0, PALETTE.salt);
+        grad.addColorStop(1, 'transparent');
+        dctx.fillStyle = grad;
+        dctx.fillRect(0, 0, 32, 32);
+        const dustTex = new THREE.CanvasTexture(dustCanvas);
+        const dustGeo = new THREE.BufferGeometry();
+        const dustPos = new Float32Array(380 * 3);
+        for(let i=0; i<380*3; i++) dustPos[i] = (Math.random()-0.5)*30;
+        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPos, 3));
+        const dustMat = new THREE.PointsMaterial({ size: 0.15, map: dustTex, transparent: true, blending: THREE.AdditiveBlending });
+        const dust = new THREE.Points(dustGeo, dustMat);
+        scene.add(dust);
+
+        // FLIGHT & ANIMATION
+        const curve = new THREE.CatmullRomCurve3([
+            new THREE.Vector3(0, 3, 31),
+            new THREE.Vector3(0, 2.5, 15),
+            new THREE.Vector3(0, 2.35, 7),
+            new THREE.Vector3(0, 2.35, 6.4)
+        ]);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        let shot = urlParams.get('shot') ? parseFloat(urlParams.get('shot')) : null;
+        let progress = 0;
+        let isFlipping = false;
+        let coinFlipRot = 0;
+
+        const flipBtn = document.getElementById('flip-btn');
+        const ui = document.getElementById('ui');
+
+        function triggerFlip() {
+            if(isFlipping) return;
+            isFlipping = true;
+        }
+        flipBtn.onclick = triggerFlip;
+        window.onclick = triggerFlip;
+
+        function smootherstep(t) {
+            return t * t * t * (t * (t * 6 - 15) + 10);
+        }
+
+        function animate(time) {
+            time *= 0.001;
+            
+            if(shot === null) {
+                progress = Math.min(1, progress + 0.001);
+            } else {
+                progress = shot;
+            }
+
+            const t = smootherstep(progress);
+            const pos = curve.getPoint(t);
+            camera.position.copy(pos);
+            camera.lookAt(0, 2.35, 0);
+
+            if(progress >= 1) {
+                camera.position.y += Math.sin(time * 0.5) * 0.05;
+                camera.position.x += Math.cos(time * 0.3) * 0.05;
+            }
+
+            if(progress > 0.86) ui.classList.add('visible');
+
+            // Coin flip
+            if(isFlipping) {
+                coinFlipRot += 0.05;
+                if(coinFlipRot >= Math.PI) {
+                    coinFlipRot = Math.PI;
+                    isFlipping = false;
+                }
+            }
+            coinGroup.rotation.y = THREE.MathUtils.lerp(coinGroup.rotation.y, coinFlipRot, 0.1);
+            coinGroup.position.y = 2.35 + Math.sin(time * 1.2) * 0.05;
+
+            // Dust
+            dust.position.y += 0.005;
+            if(dust.position.y > 10) dust.position.y = -10;
+
+            // Wall pulse
+            waitingBrick.material.opacity = 0.3 + Math.sin(time * 2) * 0.2;
+
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+
+        window.onresize = () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
